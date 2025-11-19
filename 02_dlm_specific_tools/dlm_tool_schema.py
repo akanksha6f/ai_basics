@@ -44,15 +44,15 @@ def get_search_system_flexi_schema():
                 "properties": {
                     "query": {
                         "type": "string",
+                        "enum":["systemType", "extSystem","sid","landscape"],
                          "description": (
                             "Comma-separated list of fields to retrieve, with optional filters. "
                             "Filters are encoded as 'field|value'. "
                             "Example: 'SID,systemType,status,customer.name,sid|ER1,status|Live'. "
                             " Rules: 'sid|...' is only valid for a specific 3-character SID. "
-                            "To query multiple systems, use only other filters like 'status|Parked'."   
-           
-                    )
-                    },
+                            "To query multiple systems, use only other filters like 'status|Parked'."
+                            "for an extensibility system, please make sure that the flag extSystem is true."),                            
+                            },
                         "otype": {
                         "type": "string",
                         "enum": ["json", "xml", "csv"],
@@ -60,7 +60,7 @@ def get_search_system_flexi_schema():
                         "description": "Output format (default: json)."
                     }
                 },
-                "required": ["query"],
+                "required": ["query", "otype"],
                 "additionalProperties": False
             },
             "strict": True
@@ -157,3 +157,106 @@ def get_entity_details_schema():
 def get_all_schemas():
     """Convenience: return both tool schemas as a list."""
     return [get_search_system_flexi_schema(), get_entity_details_schema()]
+
+def get_BCM_request_schema( ):
+    """ BCM (Business Client Management) is a DLM-specific tool used for client setup inside SAP systems.
+    User Groups:
+        - Requestor: Creates BCM requests for new clients
+        - Technical Expert / COE / Expert
+        - Request Manager
+        - Guest
+
+    A BCM request consists of multiple sections such as Header, Details, and Scope Items.
+
+    This schema defines a generic API call to fetch BCM request details.
+    The input parameters are dynamic based on user requirements.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "get_BCM_Request",
+            "description": (
+                "Execute a POST call to the BCM (Business Client Management) service "
+                "to fetch client request details. it's a POST call and the payload are craeted dynamically based on the user input"
+           ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "endpoint": {
+                        "type": "string",
+                        "description": "The API endpoint to call BCM service.",
+                        "default": "https://ldciade.wdf.sap.corp:44315/sap/bc/abap/DLMD/BCM_READ_DATA?sap-client=200&IS_GENERIC=X"  
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["POST"],
+                        "default": "POST",
+                        "description": "The HTTP method to be used for the call."
+                    },
+                    "payload": {
+                        "type": "object",
+                        "description": "POST body payload for the BCM API call.",
+                        "properties": {
+                            "HEADER_FILTER": {
+                                "type": "array",
+                                "description": """This array will be formed based on user input
+                                                this filiter criteria will be used for fetching data from ABAP SE11 table /DLMD/2BCPR_MSTR """,
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "FIELD_NAME": {
+                                            "type": "string",
+                                            "description": """Technical name of the field, determined based on user prompt,"
+                                                            e.g., 'REQUEST_ID', 'VERSION', 'STATUS', 'REQUESTOR', 'TYPE', etc.
+                                                            All the field name should be part of /DLMD/2BCPR_MSTR table fields""",
+                                           "enum":[] },
+                                        "VALUE_SELOP": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "SIGN": {
+                                                        "type": "string",
+                                                        "description": "I = Include if the value should be included or E = Exclude if the value should be excluded.",
+                                                        "valid enum": ["I", "E"]
+                                                    },
+                                                    "OPTION": {
+                                                        "type": "string",
+                                                        "description": """The operators determine whether the specified values are used as a single value, a range or a search pattern when restricting the data selection. 
+                                                        These operators work together with the fields lower limit (LOW), upper limit (HIGH) and the OPTION (I/E).
+                                                        The following operators may be used:
+                                                        EQ Equal
+                                                        BT BeTween
+                                                        LE Less Equal
+                                                        GE Greater Equal
+                                                        CP Contains Pattern""",
+                                                        "valid enum": ["EQ", "GE", "LE", "BT", "NB", "CP"]
+                                                    },
+                                                    "LOW": {
+                                                        "type": "string",
+                                                        "description": "The lower limit of the value range for the filter condition."
+                                                    },
+                                                    "HIGH": {"type": "string",
+                                                    "description": "The upper limit of the value range for the filter condition."
+                                                    }
+                                                },
+                                                "required": ["SIGN", "OPTION", "LOW"]
+                                            }
+                                        }
+                                    },
+                                    "required": ["FIELD_NAME", "VALUE_SELOP"]
+                                }
+                            }
+                            },
+                            "HEADER_OUT_FEILD": {
+                                "type": "string",
+                                "description": """Comma-separated list of fields to retrieve in the response.
+                                                e.g., 'REQUEST_ID,VERSION,STATUS,REQUESTOR,TYPE'""",
+                            }
+                        },
+                        "required": ["HEADER_FILTER, HEADER_OUT_FEILD"]
+                    }
+                }
+            }
+        }
+  
